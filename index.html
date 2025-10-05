@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self' https://*.contentful.com;
+        frame-ancestors 'self' https://app.contentful.com https://*.contentful.com;
+        script-src 'self';
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data: https:;
+        font-src 'self' https:;
+        connect-src 'self'
+                     https://app.contentful.com
+                     https://cdn.contentful.com
+                     https://api.contentful.com
+                     https://preview.contentful.com
+                     https://your-index-api-host.tld;
+      "
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reindex</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Dev entry (Vite dev server). In production, Vite will replace this with ./assets/... -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "name": "contentful-index-app",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "clean": "shx rm -rf build && shx mkdir -p build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "vite",
+    "build": "npm run clean && npm run typecheck && vite build && npm run build:functions && npm run copy:manifest",
+    "build:functions": "contentful-app-scripts build-functions --ci",
+    "copy:manifest": "shx cp contentful-app-manifest.json build/contentful-app-manifest.json",
+    "preview": "vite preview",
+    "create-app-definition": "contentful-app-scripts create-app-definition",
+    "add-locations": "contentful-app-scripts add-locations",
+    "upload": "contentful-app-scripts upload --bundle-dir ./build",
+    "deploy": "npm run build && npm run upload",
+    "upload-ci": "contentful-app-scripts upload --ci --bundle-dir ./build --organization-id $CONTENTFUL_ORG_ID --definition-id $CONTENTFUL_APP_DEF_ID --token $CONTENTFUL_ACCESS_TOKEN"
+  },
+  "dependencies": {
+    "@contentful/app-sdk": "^4.45.0",
+    "@contentful/react-apps-toolkit": "^1.2.16",
+    "@contentful/f36-components": "^4.0.0",
+    "@contentful/f36-tokens": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@contentful/app-scripts": "^2.5.5",
+    "@contentful/node-apps-toolkit": "^3.13.1",
+    "@tsconfig/recommended": "1.0.8",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "shx": "^0.3.4",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}
