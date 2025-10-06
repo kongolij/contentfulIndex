@@ -16,13 +16,8 @@ export async function gqlFetch(
   variables?: Record<string, unknown>
 ): Promise<GqlRes> {
 
-   const url = endpoint(spaceId, environmentId);
+  const url = endpoint(spaceId, environmentId);
 
-  // --- LOG URL + PAYLOAD (token redacted)
-  console.log('[GQL] URL:', url);
-  console.log('[GQL] Headers:', accessToken);
-  console.log('[GQL] Variables:', variables ?? {});
-  console.log('[GQL] Query:', query);
 
   const res = await fetch(endpoint(spaceId, environmentId), {
     method: 'POST',
@@ -80,6 +75,6 @@ export async function fetchLatestEntryByContentType(opts: {
   return items[0] || null;
 }
 
-// 👇 force explicit module exports (helps TS avoid “not a module”)
+//  force explicit module exports (helps TS avoid “not a module”)
 export type { GqlOk, GqlErr };
 export { endpoint };

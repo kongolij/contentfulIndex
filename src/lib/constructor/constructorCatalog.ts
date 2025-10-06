@@ -95,7 +95,7 @@ export async function putCatalogInMemory(
   qs.set('section', "Content") // e.g., "Content"
   if (typeof opts.force === 'boolean') qs.set('force', String(!!opts.force))
   if (opts.c) qs.set('c', opts.c)
-  if (opts.notification_email) qs.set('notification_email', opts.notification_email)
+//   if (opts.notification_email) qs.set('notification_email', opts.notification_email)
   if (format) qs.set('format', format) // ensure JSONL if you're sending JSONL
 
   const url = `https://ac.cnstrc.com/v1/catalog?${qs.toString()}`

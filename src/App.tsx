@@ -19,8 +19,6 @@ type InstallParams = {
   constructor?: { key?: string; token?: string; section?: string };
 };
 
-// ⚠️ Paste YOUR Function-invocation Action sys.id
-const APP_ACTION_ID = '2PCDcdGGPESa4MWitR2ZUo';
 
 // Dropdown → actual content type ids
 const SECTION_TO_CT: Record<SectionKey, string> = {
@@ -36,7 +34,11 @@ async function callTriggerIndex(sdk: AppExtensionSDK, section: SectionKey) {
   const cma: any = sdk.cma;
   
 
-  if (!APP_ACTION_ID) throw new Error('Missing APP_ACTION_ID.');
+  const appActionId =
+    sdk.parameters?.installation?.appAction?.appActionId ||
+    sdk.parameters?.installation?.action?.id
+
+  if (!appActionId) throw new Error('Missing APP_ACTION_ID.');
   const contentTypeId = SECTION_TO_CT[section];
   if (!contentTypeId) throw new Error(`Unknown section → contentTypeId mapping for "${section}".`);
 
@@ -45,7 +47,7 @@ async function callTriggerIndex(sdk: AppExtensionSDK, section: SectionKey) {
     spaceId: space,
     environmentId: environment,
     appDefinitionId: app,
-    appActionId: APP_ACTION_ID,
+    appActionId: appActionId,
   };
 
   const payload = {
@@ -59,7 +61,7 @@ async function callTriggerIndex(sdk: AppExtensionSDK, section: SectionKey) {
     },
   };
 
-  console.log('XXX ids from page: XX ', { space, environment, app, APP_ACTION_ID });
+  
   // Prefer singular + withResult (two-arg)
   if (typeof cma?.appActionCall?.createWithResult === 'function') {
     return cma.appActionCall.createWithResult(paramsBase, payload);
@@ -76,7 +78,7 @@ async function callTriggerIndex(sdk: AppExtensionSDK, section: SectionKey) {
       spaceId: space,
       environmentId: environment,
       appDefinitionId: app,
-      appActionId: APP_ACTION_ID,
+      appActionId: appActionId,
       body: payload,
     });
   }

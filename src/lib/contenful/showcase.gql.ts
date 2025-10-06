@@ -1,92 +1,91 @@
-// src/lib/showcase.gql.ts
-import { gqlFetch, GqlRes } from "./contentfulGql";
+// src/lib/contenful/showcase.gql.ts
+import { gqlFetch, GqlRes } from './contentfulGql';
 
 type ShowcaseOrder =
-  | "sys_publishedAt_DESC"
-  | "sys_publishedAt_ASC"
-  | "sys_firstPublishedAt_DESC"
-  | "sys_firstPublishedAt_ASC"
-  | "sys_updatedAt_DESC"
-  | "sys_updatedAt_ASC";
+  | 'sys_publishedAt_DESC'
+  | 'sys_publishedAt_ASC'
+  | 'sys_firstPublishedAt_DESC'
+  | 'sys_firstPublishedAt_ASC'
+  | 'sys_updatedAt_DESC'
+  | 'sys_updatedAt_ASC';
 
-/**
- * Fetch a paged list of ProjectShowcase entries (published) with optional concept filters.
- * If you pass no conceptIds, the where-clause is omitted so everything matches.
- */
 export async function getShowcaseLists(opts: {
   spaceId: string;
   environmentId: string;
-  accessToken: string; // CDA token (or preview token if you want preview)
-  locale: string;
+  accessToken: string;      // CDA token
   limit?: number;
   skip?: number;
-  conceptIds?: string[];       // optional Contentful concept IDs
-  sortOrder?: ShowcaseOrder[]; // defaults to ['sys_publishedAt_DESC']
+  conceptIds?: string[];
+  sortOrder?: ShowcaseOrder[];
 }) {
   const {
     spaceId,
     environmentId,
     accessToken,
-    locale,
     limit = 20,
     skip = 0,
     conceptIds,
-    sortOrder = ["sys_publishedAt_DESC"],
+    sortOrder = ['sys_publishedAt_DESC'],
   } = opts;
 
   const withFilter = Array.isArray(conceptIds) && conceptIds.length > 0;
 
   const query = `
     query getShowcaseLists(
-      $limit: Int = 1
+      $limit: Int = 20
       $skip: Int = 0
       $sortOrder: [ProjectShowcaseOrder] = [sys_publishedAt_DESC]
+      $localeEn: String! = "en-US"
+      $localeFr: String! = "fr"
+      ${withFilter ? '$conceptIds: [String!]' : ''}
     ) {
       projectShowcaseCollection(
         limit: $limit
         skip: $skip
         order: $sortOrder
+        ${withFilter ? 'where: { contentfulMetadata: { concepts: { id_contains_some: $conceptIds } } }' : ''}
       ) {
-        ...ProjectShowcaseCollection
+        total
+        items {
+          sys { id }
+
+          title_en: title(locale: $localeEn)
+          title_fr: title(locale: $localeFr)
+
+          slug_en: slug(locale: $localeEn)
+          slug_fr: slug(locale: $localeFr)
+
+          description_en: description(locale: $localeEn) { json }
+          description_fr: description(locale: $localeFr) { json }
+
+          featuredImage {
+            __typename
+            altText
+            image { url }
+            title
+          }
+
+          contentfulMetadata {
+            concepts { id }
+            tags { id name }
+          }
+        }
       }
-    }
-
-    fragment ProjectShowcaseCollection on ProjectShowcaseCollection {
-      total
-      items { ...ProjectShowcaseListItem }
-    }
-
-    fragment ProjectShowcaseListItem on ProjectShowcase {
-      title
-      slug
-      description { json }
-      featuredImage { ...ShowcaseFeaturedImage }   # typed as Image in your model
-      contentfulMetadata { ...ShowcaseCategoriesMetadata }
-    }
-
-    # Keep this minimal and self-contained: no external ...Image fragment.
-    fragment ShowcaseFeaturedImage on Image {
-      __typename
-      altText
-      image{
-        url
-      }
-      title
-    }
-
-    # Stay safe on concepts; tags.name is typically valid.
-    fragment ShowcaseCategoriesMetadata on ContentfulMetadata {
-      concepts { id }
-      tags { id name }
     }
   `;
 
-  const variables: Record<string, unknown> = { locale, limit, skip, sortOrder };
+  const variables: Record<string, unknown> = {
+    limit,
+    skip,
+    sortOrder,
+    localeEn: 'en-US',
+    localeFr: 'fr', // change to 'fr' if that's your space code
+  };
   if (withFilter) variables.conceptIds = conceptIds;
 
   const res: GqlRes = await gqlFetch(spaceId, environmentId, accessToken, query, variables);
   if (!res.ok) {
-    const msg = `Showcase query failed: ${res.status ?? ""} ${res.error}`;
+    const msg = `Showcase query failed: ${res.status ?? ''} ${res.error}`;
     console.log(msg, res.body);
     throw new Error(msg);
   }

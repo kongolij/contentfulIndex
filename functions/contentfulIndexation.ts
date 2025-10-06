@@ -2,123 +2,61 @@
 import type { FunctionEventHandler } from '@contentful/node-apps-toolkit';
 import { FunctionTypeEnum } from '@contentful/node-apps-toolkit';
 
-// GraphQL page fetcher for projectShowcase
+// ⬇️ make sure this import matches your updated path
 import { getShowcaseLists } from '../src/lib/contenful/showcase.gql';
 import { toConstructorItemFromShowcase } from '../src/lib/mappers/showcase';
 import { putCatalogInMemory } from '../src/lib/constructor/constructorCatalog';
 
-type Params = {
-  // optional: you can still pass this from Page UI, but we hardcode showcases below
-  contentTypeId?: string;
+import {
+  loadContentfulGqlCreds,
+  loadConstructorCredsFromContextOrEnv,
+} from '../src/utils/creds';
 
-  // optional overrides
-  section?: string;            // Constructor section override
-  constructorKey?: string;     // dev override
-  constructorToken?: string;   // dev override
+type Params = {
+  contentTypeId?: string;      // kept for future filters if needed
+  section?: string;            // optional Constructor section override
+  constructorToken?: string;   // optional dev override, if supported in creds loader
 };
 
 type ConstructorCreds = { key: string; token: string; section?: string };
 
-const redact = (s?: string) => (s ? `${s.slice(0, 2)}••••${s.slice(-2)}` : '(none)');
-
-/* ----------------------- Installation parameters helpers ----------------------- */
-
-function loadContentfulGqlCreds(context: any): { token: string } {
-  const cfg =
-    (context as any)?.appInstallationParameters?.contentful ??
-    (context as any)?.parameters?.installation?.contentful ??
-    {};
-
-  // We only use CDA (delivery) per your request
-  const token = cfg?.deliveryToken;
-
-  // Presence logs only (no secrets)
-  console.log('contentful cfg present:', !!cfg, '| token present:', !!token);
-
-  if (!token) throw new Error('Contentful GraphQL token missing (delivery).');
-  return { token };
-}
-
-function loadConstructorCredsFromContextOrEnv(
-  context: any,
-  params?: { section?: string; constructorKey?: string; constructorToken?: string }
-): ConstructorCreds {
-  const ctorFromContext =
-    (context as any)?.appInstallationParameters?.constructor ??
-    (context as any)?.parameters?.installation?.constructor ??
-    {};
-
-  const key =
-    process.env.CONSTRUCTOR_API_KEY ||
-    params?.constructorKey ||
-    ctorFromContext?.key;
-
-  const token =
-    process.env.CONSTRUCTOR_API_TOKEN ||
-    params?.constructorToken ||
-    ctorFromContext?.token;
-
-  const section =
-    process.env.CONSTRUCTOR_SECTION ||
-    params?.section ||
-    ctorFromContext?.section;
-
-  // Presence logs only
-  console.log(
-    'ctx.appInstallationParameters present:',
-    !!(context as any)?.appInstallationParameters,
-    '| ctx.parameters.installation present:',
-    !!(context as any)?.parameters?.installation
-  );
-
-  if (!key)   throw new Error('Constructor key missing (context/env)');
-  if (!token) throw new Error('Constructor token missing (context/env)');
-  return { key, token, section };
-}
-
-/* ---------------------------------- Handler ---------------------------------- */
-
 export const handler: FunctionEventHandler<FunctionTypeEnum.AppActionCall> = async (event, context) => {
   const params = ((event as any)?.body?.parameters ?? (event as any)?.body ?? {}) as Params;
 
-  // 1) Load credentials (no secrets logged)
-  const { key, token, section } = loadConstructorCredsFromContextOrEnv(context, params);
+  // 1) Load creds (EN + FR) and Contentful GraphQL token
+  const { en, fr } = loadConstructorCredsFromContextOrEnv(context, {
+    section: params.section,
+    constructorToken: params.constructorToken,
+  });
   const { token: gqlToken } = loadContentfulGqlCreds(context);
-  console.log(
-    'Constructor key (redacted):',
-    redact(key),
-    '| section override:',
-    params.section || section || 'Contents'
-  );
 
-  // 2) Page through ALL showcases
   const PAGE_SIZE = 50;
+
+  // 2) Single pagination over Contentful — query must alias fields like title_en/title_fr, slug_en/slug_fr, description_en/description_fr
   let skip = 0;
   let total = 0;
-  const allShowcases: any[] = [];
+  const allEntries: any[] = [];
 
   while (true) {
     const page = await getShowcaseLists({
       spaceId: context.spaceId,
       environmentId: context.environmentId,
       accessToken: gqlToken,
-      locale: 'en-US',
       limit: PAGE_SIZE,
       skip,
-      // NOTE: leave conceptIds undefined to fetch ALL showcases
       sortOrder: ['sys_publishedAt_DESC'],
+      // conceptIds?: []   // optional: add if you want to filter
     });
 
     const items = Array.isArray(page?.items) ? page.items : [];
     if (skip === 0) total = page?.total ?? items.length;
 
-    allShowcases.push(...items);
-
-    if (allShowcases.length >= total || items.length === 0) break;
+    allEntries.push(...items);
+    if (allEntries.length >= total || items.length === 0) break;
     skip += PAGE_SIZE;
   }
 
-  if (allShowcases.length === 0) {
+  if (allEntries.length === 0) {
     return {
       ok: true,
       message: 'No Project Showcase items found from GraphQL.',
@@ -126,38 +64,81 @@ export const handler: FunctionEventHandler<FunctionTypeEnum.AppActionCall> = asy
     };
   }
 
-  // 3) Map → Constructor items
-  const constructorItems = allShowcases.map(toConstructorItemFromShowcase);
+  // 3) Normalize each entry to the shape your mapper expects, for EN and FR separately
+  //    Assumes your query provides title_en/title_fr, slug_en/slug_fr, description_en/description_fr
+  const normalizeForLocale = (e: any, locale: 'en' | 'fr') => {
+  const isFr = locale === 'fr';
+  return {
+    ...e,
+    // titles
+    title: isFr ? (e.title_fr ?? e.title) : (e.title_en ?? e.title),
 
-  // 4) Build JSONL (one JSON object per line)
-  const itemsJsonl = constructorItems.map((it) => JSON.stringify(it)).join('\n');
+    // slugs: your fragment has default `slug` (EN) and `slug_fr` (FR)
+    slug: isFr ? (e.slug_fr ?? e.slug) : e.slug,
 
-  // 5) Full catalog upload (JSONL, in-memory)
-  const upload = await putCatalogInMemory(itemsJsonl, {
-    key,
-    token,
-    section: params.section || section || 'Contents',
-    format: 'jsonl',
-    force: true,
-    c: 'contentful-index-app/1.0',
-  });
+    // descriptions: you already fetch description_en/description_fr and default description
+    description: isFr
+      ? (e.description_fr ?? e.description)
+      : (e.description_en ?? e.description),
 
-  console.log( " ----  indexed" )
+    // keep featuredImage & contentfulMetadata as-is
+  };
+};
 
-  // Keep response small (avoid serializing big arrays)
+
+  const enItems = allEntries.map((e) => toConstructorItemFromShowcase(normalizeForLocale(e, 'en')));
+  const frItems = allEntries.map((e) => toConstructorItemFromShowcase(normalizeForLocale(e, 'fr')));
+
+  const enJsonl = enItems.map((it) => JSON.stringify(it)).join('\n');
+  const frJsonl = frItems.map((it) => JSON.stringify(it)).join('\n');
+
+  // 4) Upload to Constructor twice — EN then FR (sequential keeps logs cleaner)
+  const sectionEn = params.section || en.section || 'Content';
+  const sectionFr = params.section || fr.section || 'Content';
+
+  const enUpload = enItems.length
+    ? await putCatalogInMemory(enJsonl, {
+        key: en.key,
+        token: en.token,
+        section: sectionEn,
+        format: 'jsonl',
+        force: true,
+        c: 'contentful-index-app/1.0',
+      })
+    : undefined;
+
+  const frUpload = frItems.length
+    ? await putCatalogInMemory(frJsonl, {
+        key: fr.key,
+        token: fr.token,
+        section: sectionFr,
+        format: 'jsonl',
+        force: true,
+        c: 'contentful-index-app/1.0',
+      })
+    : undefined;
+
+  // 5) Compact response
   return {
     ok: true,
-    message: `Uploaded ${constructorItems.length} showcases to Constructor (section: ${params.section || section || 'Contents'}).`,
+    message: `Indexed ${enItems.length} EN and ${frItems.length} FR showcases to Constructor.`,
     meta: {
-      totalQueried: total,
       spaceId: context.spaceId,
       environmentId: context.environmentId,
       pageSize: PAGE_SIZE,
+      totalQueried: total,
     },
     result: {
-      mode: 'catalog-upload-jsonl',
-      taskId: (upload as any)?.task_id || (upload as any)?.id || undefined,
-      lines: constructorItems.length,
+      en: {
+        uploaded: enItems.length,
+        section: sectionEn,
+        taskId: (enUpload as any)?.task_id || (enUpload as any)?.id || undefined,
+      },
+      fr: {
+        uploaded: frItems.length,
+        section: sectionFr,
+        taskId: (frUpload as any)?.task_id || (frUpload as any)?.id || undefined,
+      },
     },
   };
 };

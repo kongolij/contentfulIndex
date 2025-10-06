@@ -1,4 +1,4 @@
-// Reusable CMA helpers that copy the *exact* working logic you shared.
+// Reusable CMA helperss.
 
 export async function getCmaClient(context: any): Promise<any> {
   // Prefer injected client from the function context
