@@ -10,11 +10,14 @@ import {
   Paragraph,
   Select,
   Stack,
-  Text,
-  Badge,
+  Text
 } from '@contentful/f36-components';
 
 type SectionKey = 'showcase' | 'techtip';
+
+type InstallParams = {
+  constructor?: { key?: string; token?: string; section?: string };
+};
 
 // ⚠️ Paste YOUR Function-invocation Action sys.id
 const APP_ACTION_ID = '2PCDcdGGPESa4MWitR2ZUo';
@@ -31,12 +34,16 @@ const DEFAULT_PAGE_SIZE = 50;
 async function callTriggerIndex(sdk: AppExtensionSDK, section: SectionKey) {
   const { space, environment, app } = sdk.ids;
   const cma: any = sdk.cma;
+  
 
   if (!APP_ACTION_ID) throw new Error('Missing APP_ACTION_ID.');
   const contentTypeId = SECTION_TO_CT[section];
   if (!contentTypeId) throw new Error(`Unknown section → contentTypeId mapping for "${section}".`);
 
+
   const paramsBase = {
+    spaceId: space,
+    environmentId: environment,
     appDefinitionId: app,
     appActionId: APP_ACTION_ID,
   };
@@ -52,6 +59,7 @@ async function callTriggerIndex(sdk: AppExtensionSDK, section: SectionKey) {
     },
   };
 
+  console.log('XXX ids from page: XX ', { space, environment, app, APP_ACTION_ID });
   // Prefer singular + withResult (two-arg)
   if (typeof cma?.appActionCall?.createWithResult === 'function') {
     return cma.appActionCall.createWithResult(paramsBase, payload);
@@ -180,7 +188,7 @@ function Root() {
             Select a content type and trigger a reindex for this environment.
           </Paragraph>
         </Stack>
-        <Badge variant="secondary">location: {currentLocation}</Badge>
+        {/* <Badge variant="secondary">location: {currentLocation}</Badge> */}
       </Flex>
 
       <IndexPanel sdk={sdk} />

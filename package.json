@@ -22,9 +22,12 @@
   },
   "dependencies": {
     "@contentful/app-sdk": "^4.45.0",
-    "@contentful/react-apps-toolkit": "^1.2.16",
-    "@contentful/f36-components": "^4.0.0",
+    "@contentful/f36-components": "^4.81.1",
     "@contentful/f36-tokens": "^4.0.0",
+    "@contentful/f36-workbench": "^4.21.1",
+    "@contentful/react-apps-toolkit": "^1.2.16",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -32,6 +35,7 @@
     "@contentful/app-scripts": "^2.5.5",
     "@contentful/node-apps-toolkit": "^3.13.1",
     "@tsconfig/recommended": "1.0.8",
+    "@types/node": "^24.6.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

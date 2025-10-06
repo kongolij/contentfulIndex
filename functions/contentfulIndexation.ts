@@ -1,110 +1,163 @@
+// functions/contentfulIndexation.ts
 import type { FunctionEventHandler } from '@contentful/node-apps-toolkit';
 import { FunctionTypeEnum } from '@contentful/node-apps-toolkit';
 
+// GraphQL page fetcher for projectShowcase
+import { getShowcaseLists } from '../src/lib/contenful/showcase.gql';
+import { toConstructorItemFromShowcase } from '../src/lib/mappers/showcase';
+import { putCatalogInMemory } from '../src/lib/constructor/constructorCatalog';
+
 type Params = {
+  // optional: you can still pass this from Page UI, but we hardcode showcases below
   contentTypeId?: string;
-  pageSize?: number; // ignored — single-entry mode
-  latest?: boolean;  // choose latest (true) or earliest (false)
+
+  // optional overrides
+  section?: string;            // Constructor section override
+  constructorKey?: string;     // dev override
+  constructorToken?: string;   // dev override
 };
 
-export const handler: FunctionEventHandler<FunctionTypeEnum.AppActionCall> = async (
-  event,
-  context
-) => {
-  const params = ((event as any)?.body?.parameters ?? (event as any)?.body ?? {}) as Params;
-  const contentTypeId = (params.contentTypeId || '').trim();
+type ConstructorCreds = { key: string; token: string; section?: string };
 
-  // Force latest for now (or use a robust parser if you want to read from params.latest)
-  const latest = true;
+const redact = (s?: string) => (s ? `${s.slice(0, 2)}••••${s.slice(-2)}` : '(none)');
 
-  console.log('event.type:', (event as any)?.type);
-  console.log('params:', JSON.stringify({ contentTypeId, latest }));
+/* ----------------------- Installation parameters helpers ----------------------- */
 
-  if (!contentTypeId) throw new Error('Missing required parameter: contentTypeId');
+function loadContentfulGqlCreds(context: any): { token: string } {
+  const cfg =
+    (context as any)?.appInstallationParameters?.contentful ??
+    (context as any)?.parameters?.installation?.contentful ??
+    {};
 
-  // --- CMA client (prefer injected from context)
-  let cma: any = (context as any)?.cma;
-  if (!cma) {
-    const { createClient } = await import('contentful-management');
-    const cmaOpts = (context as any)?.cmaClientOptions;
-    if (!cmaOpts) throw new Error('CMA not available in this function context.');
-    cma = createClient(cmaOpts, {
-      type: 'plain',
-      defaults: { spaceId: context.spaceId, environmentId: context.environmentId },
-    });
-  }
+  // We only use CDA (delivery) per your request
+  const token = cfg?.deliveryToken;
 
-  // --- Build deterministic query (published-only + order + type filter)
-  const query: Record<string, string> = {
-    // CMA often honors this, but we’ll also add the sys-path filter for safety:
-    content_type: contentTypeId,
+  // Presence logs only (no secrets)
+  console.log('contentful cfg present:', !!cfg, '| token present:', !!token);
 
-    // Published only, not archived
-    'sys.publishedAt[exists]': 'true',
-    'sys.archivedAt[exists]': 'false',
+  if (!token) throw new Error('Contentful GraphQL token missing (delivery).');
+  return { token };
+}
 
-    // Single item
-    limit: '1',
+function loadConstructorCredsFromContextOrEnv(
+  context: any,
+  params?: { section?: string; constructorKey?: string; constructorToken?: string }
+): ConstructorCreds {
+  const ctorFromContext =
+    (context as any)?.appInstallationParameters?.constructor ??
+    (context as any)?.parameters?.installation?.constructor ??
+    {};
 
-    // Deterministic “latest/earliest” by publish timestamp with tie-breakers
-    order: latest
-      ? '-sys.publishedAt,-sys.updatedAt,-sys.createdAt,sys.id'
-      : 'sys.publishedAt,sys.updatedAt,sys.createdAt,sys.id',
-  };
+  const key =
+    process.env.CONSTRUCTOR_API_KEY ||
+    params?.constructorKey ||
+    ctorFromContext?.key;
 
-  // Add sys-path filter, too (belt & suspenders)
-  // Note: using the non-[in] variant is fine for a single ID.
-  query['sys.contentType.sys.id'] = contentTypeId;
+  const token =
+    process.env.CONSTRUCTOR_API_TOKEN ||
+    params?.constructorToken ||
+    ctorFromContext?.token;
 
-  // --- Construct raw URL (so we can log exactly what’s sent)
-  const search = new URLSearchParams(query).toString();
-  const path = `/spaces/${context.spaceId}/environments/${context.environmentId}/entries?${search}`;
-  const fullUrl = `https://api.contentful.com${path}`;
-  console.log('CMA URL:', fullUrl);
+  const section =
+    process.env.CONSTRUCTOR_SECTION ||
+    params?.section ||
+    ctorFromContext?.section;
 
-  // --- Try SDK first
-  let res: any;
-  try {
-    res = await cma.entry.getMany({ query });
-  } catch (e) {
-    console.log('SDK getMany failed, falling back to raw.get():', (e as Error)?.message);
-  }
-
-  // --- If SDK failed or seems wrong, try raw GET (bypass SDK param shaping)
-  if (!res?.items) {
-    try {
-      res = await (cma as any).raw.get(path);
-    } catch (e) {
-      console.log('raw.get() failed:', (e as Error)?.message);
-      throw e;
-    }
-  }
-
-  // --- Defensive: ensure we only keep the exact content type requested
-  const items: any[] = Array.isArray(res?.items) ? res.items : [];
-  const filtered = items.filter(
-    (it) => it?.sys?.contentType?.sys?.id === contentTypeId && !!it?.sys?.publishedAt
+  // Presence logs only
+  console.log(
+    'ctx.appInstallationParameters present:',
+    !!(context as any)?.appInstallationParameters,
+    '| ctx.parameters.installation present:',
+    !!(context as any)?.parameters?.installation
   );
 
-  const item = filtered[0] ?? null;
+  if (!key)   throw new Error('Constructor key missing (context/env)');
+  if (!token) throw new Error('Constructor token missing (context/env)');
+  return { key, token, section };
+}
 
-  if (!item) {
-    const total = typeof res?.total === 'number' ? res.total : items.length;
-    const firstType = items[0]?.sys?.contentType?.sys?.id;
-    const msg = `No published entries of type "${contentTypeId}" found. (total=${total}, firstType=${firstType || 'n/a'})`;
-    console.log(msg);
-    return { ok: true, message: msg, meta: { contentTypeId, latest } };
+/* ---------------------------------- Handler ---------------------------------- */
+
+export const handler: FunctionEventHandler<FunctionTypeEnum.AppActionCall> = async (event, context) => {
+  const params = ((event as any)?.body?.parameters ?? (event as any)?.body ?? {}) as Params;
+
+  // 1) Load credentials (no secrets logged)
+  const { key, token, section } = loadConstructorCredsFromContextOrEnv(context, params);
+  const { token: gqlToken } = loadContentfulGqlCreds(context);
+  console.log(
+    'Constructor key (redacted):',
+    redact(key),
+    '| section override:',
+    params.section || section || 'Contents'
+  );
+
+  // 2) Page through ALL showcases
+  const PAGE_SIZE = 50;
+  let skip = 0;
+  let total = 0;
+  const allShowcases: any[] = [];
+
+  while (true) {
+    const page = await getShowcaseLists({
+      spaceId: context.spaceId,
+      environmentId: context.environmentId,
+      accessToken: gqlToken,
+      locale: 'en-US',
+      limit: PAGE_SIZE,
+      skip,
+      // NOTE: leave conceptIds undefined to fetch ALL showcases
+      sortOrder: ['sys_publishedAt_DESC'],
+    });
+
+    const items = Array.isArray(page?.items) ? page.items : [];
+    if (skip === 0) total = page?.total ?? items.length;
+
+    allShowcases.push(...items);
+
+    if (allShowcases.length >= total || items.length === 0) break;
+    skip += PAGE_SIZE;
   }
 
-  console.log('ENTRY SYS:', JSON.stringify(item.sys, null, 2));
-  console.log('ENTRY FIELDS:', JSON.stringify(item.fields ?? {}, null, 2));
+  if (allShowcases.length === 0) {
+    return {
+      ok: true,
+      message: 'No Project Showcase items found from GraphQL.',
+      meta: { contentTypeId: 'projectShowcase', total: 0 },
+    };
+  }
 
+  // 3) Map → Constructor items
+  const constructorItems = allShowcases.map(toConstructorItemFromShowcase);
+
+  // 4) Build JSONL (one JSON object per line)
+  const itemsJsonl = constructorItems.map((it) => JSON.stringify(it)).join('\n');
+
+  // 5) Full catalog upload (JSONL, in-memory)
+  const upload = await putCatalogInMemory(itemsJsonl, {
+    key,
+    token,
+    section: params.section || section || 'Contents',
+    format: 'jsonl',
+    force: true,
+    c: 'contentful-index-app/1.0',
+  });
+
+  console.log( " ----  indexed" )
+
+  // Keep response small (avoid serializing big arrays)
   return {
     ok: true,
-    message: `Fetched 1 ${latest ? 'latest' : 'earliest'} published entry for "${contentTypeId}".`,
-    entry: {
-      sys: item.sys,
-      fields: item.fields,
+    message: `Uploaded ${constructorItems.length} showcases to Constructor (section: ${params.section || section || 'Contents'}).`,
+    meta: {
+      totalQueried: total,
+      spaceId: context.spaceId,
+      environmentId: context.environmentId,
+      pageSize: PAGE_SIZE,
+    },
+    result: {
+      mode: 'catalog-upload-jsonl',
+      taskId: (upload as any)?.task_id || (upload as any)?.id || undefined,
+      lines: constructorItems.length,
     },
   };
 };

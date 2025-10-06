@@ -6,7 +6,12 @@
       "description": "GraphQL field mapping and query resolver for content indexation.",
       "entryFile": "functions/contentfulIndexation.ts",
       "path": "functions/contentfulIndexation.js",
-      "accepts": ["appaction.call"]
+      "accepts": ["appaction.call"],
+      "allowNetworks": [
+        "cnstrc.com",          
+        "*.cnstrc.com"         
+      ]
+      
     }
   ],
   "locations": [
