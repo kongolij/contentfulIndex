@@ -124,7 +124,7 @@ export async function putCatalogInMemory(
   console.log(`[Constructor] PUT ${maskedUrl} (multipart ${body.length} bytes)`)
 
   const res = await fetch(url, {
-    method: 'PUT',
+    method: 'PATCH',
     headers: {
       Authorization: `Basic ${Buffer.from(`${opts.token}:`).toString('base64')}`,
       Accept: 'application/json',
@@ -135,7 +135,7 @@ export async function putCatalogInMemory(
 
   const text = await res.text()
   const json = tryJson(text) ?? { raw: text }
-
+  console.log(json)
   if (!res.ok) {
     throw new Error(`Catalog upload failed: ${res.status} ${JSON.stringify(json)}`)
   }
