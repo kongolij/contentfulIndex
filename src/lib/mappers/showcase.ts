@@ -19,7 +19,7 @@ export function toConstructorItemFromShowcase(it: GqlShowcase) {
   const id = it.slug || (it.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   const name_en = it.title || id || 'untitled';
 
-  const desc_en = richTextToPlain(it.description?.json);
+  const desc = richTextToPlain(it.description?.json);
   const image_url = it.featuredImage?.image?.url ?? null;
   const image_alt = it.featuredImage?.altText || it.featuredImage?.title || null;
 
@@ -36,13 +36,13 @@ export function toConstructorItemFromShowcase(it: GqlShowcase) {
     name: name_en,       // “name in en”
     data: {
       contentType: 'showcase',
-      description_en: desc_en,
+      description: desc,
       image_url,
       image_alt,
       categories,        // list of names from metadata tags
       concepts,          // raw concept ids (optional but handy)
-      slug: it.slug || null,
-      locale: 'en-US'
+      slug: it.slug || null
     }
   };
+   //https://www-dev.princessauto.com/en/project-showcases/1923-Austin-7-Cyclekart
 }

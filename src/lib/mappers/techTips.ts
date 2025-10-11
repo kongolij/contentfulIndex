@@ -48,8 +48,7 @@ export function toConstructorItemFromTechTip(it: GqlTechTip) {
       image_alt,
       categories,
       concepts,
-      slug: it.slug || null,
-      locale: it.__locale || 'en-US',
+      slug: it.slug || null
     },
   };
 }

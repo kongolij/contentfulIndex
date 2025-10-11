@@ -52,7 +52,6 @@ async function callTriggerIndex(sdk: AppExtensionSDK, section: SectionKey) {
 
   const payload = {
     parameters: {
-      // include these only if you want them available in event.body.parameters
       spaceId: space,
       environmentId: environment,
       section,
