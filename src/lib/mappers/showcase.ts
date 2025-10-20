@@ -42,7 +42,7 @@ export function toConstructorItemFromShowcase(it: GqlShowcase) {
     .filter(Boolean) as string[];
 
   return {
-    id,                  // unique in your index; using slug for now
+    id,                  // 
     name: name,         // “name ”
     data: {
       contentType: 'showcase',
