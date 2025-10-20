@@ -1,6 +1,6 @@
 import { richTextToPlain } from '../../utils/richText';
 
-type GqlTechTip = {
+type GqlBuyingGuide = {
   sys?: { id?: string };
   title?: string;
   slug?: string;
@@ -18,14 +18,14 @@ type GqlTechTip = {
   __locale?: 'en-US' | 'fr';
 };
 
-export function toConstructorItemFromTechTip(it: GqlTechTip) {
+export function toConstructorItemFromBuyingGuide(it: GqlBuyingGuide) {
   
   const fallbackSlug =
     (it.title ?? '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
-      
+
   const id = it.sys?.id ?? it.slug ?? fallbackSlug;
 
 
@@ -46,7 +46,7 @@ export function toConstructorItemFromTechTip(it: GqlTechTip) {
     id,
     name,
     data: {
-      contentType: 'techTip',
+      contentType: 'buyingGuide',
       description: desc,
       image_url,
       image_alt,

@@ -1,14 +1,23 @@
 import type { Indexer } from './types';
 import { showcaseIndexer } from './showcase';
 import { techTipIndexer } from './techtip';
+import { buyingGuideIndexer } from './buyingGuide';
+
 
 const REGISTRY: Record<string, Indexer> = {
   projectShowcase: showcaseIndexer,
-  projectShowcases: showcaseIndexer, // alias
+  projectShowcases: showcaseIndexer, 
   project_showcase: showcaseIndexer, // alias
+
   techTip: techTipIndexer,
-  techTips: techTipIndexer,          // alias (plural model id)
+  techTips: techTipIndexer,          // 
   tech_tip: techTipIndexer,          // alias
+
+  buyingGuide: buyingGuideIndexer,
+  buyingGuides: buyingGuideIndexer,
+  buying_guide: buyingGuideIndexer,         
+   
+
 };
 
 function normalizeId(id?: string) {

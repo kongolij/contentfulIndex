@@ -1,5 +1,6 @@
 import {richTextToPlain} from "../../utils/richText";
 type GqlShowcase = {
+  sys?: { id?: string };
   title?: string;
   slug?: string;
   description?: { json?: any };
@@ -16,8 +17,17 @@ type GqlShowcase = {
 };
 
 export function toConstructorItemFromShowcase(it: GqlShowcase) {
-  const id = it.slug || (it.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const name_en = it.title || id || 'untitled';
+
+  const fallbackSlug =
+    (it.title ?? '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+      
+  const id = it.sys?.id ?? it.slug ?? fallbackSlug;
+
+  
+  const name = it.title || id || 'untitled';
 
   const desc = richTextToPlain(it.description?.json);
   const image_url = it.featuredImage?.image?.url ?? null;
@@ -33,7 +43,7 @@ export function toConstructorItemFromShowcase(it: GqlShowcase) {
 
   return {
     id,                  // unique in your index; using slug for now
-    name: name_en,       // “name in en”
+    name: name,         // “name ”
     data: {
       contentType: 'showcase',
       description: desc,
@@ -44,5 +54,5 @@ export function toConstructorItemFromShowcase(it: GqlShowcase) {
       slug: it.slug || null
     }
   };
-   //https://www-dev.princessauto.com/en/project-showcases/1923-Austin-7-Cyclekart
+   
 }

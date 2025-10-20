@@ -102,7 +102,7 @@ export async function patchItems(
 
   const url = `https://ac.cnstrc.com/v2/items?${qs.toString()}`;
 
-  console.log('xxxxxxxxxxxx PATCH', url, payload);
+
 
   return cioRequest('PATCH', url, opts.token, payload);
 }

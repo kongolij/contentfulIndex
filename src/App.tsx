@@ -13,7 +13,7 @@ import {
   Text
 } from '@contentful/f36-components';
 
-type SectionKey = 'showcase' | 'techtip';
+type SectionKey = 'showcase' | 'techtip' | 'buyingGuide';
 
 type InstallParams = {
   constructor?: { key?: string; token?: string; section?: string };
@@ -24,11 +24,12 @@ type InstallParams = {
 const SECTION_TO_CT: Record<SectionKey, string> = {
   showcase: 'projectShowcase',
   techtip: 'techTip',
+  buyingGuide: 'buyingGuide',
 };
 
 const DEFAULT_PAGE_SIZE = 50;
 
-// Robust helper that works across SDK variants
+// 
 async function callTriggerIndex(sdk: AppExtensionSDK, section: SectionKey) {
   const { space, environment, app } = sdk.ids;
   const cma: any = sdk.cma;
@@ -134,6 +135,7 @@ function IndexPanel({ sdk }: { sdk: AppExtensionSDK }) {
           >
             <Select.Option value="showcase">Project Showcase</Select.Option>
             <Select.Option value="techtip">Tech Tip</Select.Option>
+            <Select.Option value="buyingGuide">Buying Guide</Select.Option>
           </Select>
         </Flex>
       </Box>
